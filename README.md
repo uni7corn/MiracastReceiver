@@ -155,6 +155,18 @@ cd MiracastReceiver
 3. **Emby 投屏兼容性**
    - 部分 Emby 客户端的 SOAP 请求格式可能需要特殊处理
 
+### 🗺️ 后续计划
+
+- **完善 AirPlay 支持**
+  - 优化 iPhone/iPad/Mac 视频投屏稳定性
+  - 完善 AirPlay 音频流播放
+  - 持续改进 iOS 屏幕镜像能力
+
+- **开发 Windows 无线投屏**
+  - 深入适配 Miracast / Wi-Fi Display 协议
+  - 完善 RTSP/RTP/H.264 接收链路
+  - 探索 Windows "无线显示器" 自动发现和连接方案
+
 ### 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
@@ -294,6 +306,18 @@ Output APKs: `app/build/outputs/apk/`
 
 3. **Emby Casting Compatibility**
    - Some Emby clients may require special SOAP format handling
+
+### 🗺️ Roadmap
+
+- **Enhance AirPlay Support**
+  - Optimize iPhone/iPad/Mac video casting stability
+  - Improve AirPlay audio streaming
+  - Continuously enhance iOS screen mirroring capabilities
+
+- **Develop Windows Wireless Display**
+  - Deep adaptation of Miracast / Wi-Fi Display protocol
+  - Improve RTSP/RTP/H.264 reception pipeline
+  - Explore Windows "Wireless Display" auto-discovery and connection solutions
 
 ### 🤝 Contributing
 
