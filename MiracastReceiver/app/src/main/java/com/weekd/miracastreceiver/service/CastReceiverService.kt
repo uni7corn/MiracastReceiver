@@ -70,12 +70,13 @@ class CastReceiverService : Service() {
         deviceUuid = generateDeviceUuid()
 
         val mirrorResolution = getBestDisplayResolution()
+        val deviceName = DeviceInfoProvider(this).getDeviceName()
         Timber.i("AirPlay mirror advertised resolution: ${mirrorResolution.first}x${mirrorResolution.second}")
 
         // 初始化 AirPlay 2 接收器（基于 PhairPlay 实现，支持 iOS 屏幕镜像）
         airPlayReceiver = AirPlayReceiver(
             context = this,
-            displayName = getString(R.string.app_name),
+            displayName = deviceName,
             mirrorWidth = mirrorResolution.first,
             mirrorHeight = mirrorResolution.second,
             audioEnabled = true,
