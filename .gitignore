@@ -109,3 +109,6 @@ AndroidSender/
 miracast-receiver-release.jks
 key
 apksigner
+
+# Release build artifacts (kept locally / attached to GitHub Releases only)
+releases/
