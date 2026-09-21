@@ -55,6 +55,10 @@
   - 倍速播放（0.5x - 2x）
   - 画质选择（480p - 1080p）
 
+- **⚡ 开机自动启动**：电视开机后在后台自动拉起接收服务，无需手动打开应用
+  - 等局域网 IP 就绪后再启动 AirPlay/DLNA/Miracast，避免开机瞬间广播绑错地址
+  - 可在主界面的「开机自动启动接收服务」开关中关闭
+
 ### 📱 支持的投屏来源
 
 | 平台 | 协议 | 状态 | 说明 |
@@ -210,6 +214,10 @@ cd MiracastReceiver
   - Image slideshow
   - Playback speed control (0.5x - 2x)
   - Quality selection (480p - 1080p)
+
+- **⚡ Auto-start on boot**: The receiver service starts in the background after the TV boots, no need to open the app
+  - Waits for a LAN IP before starting AirPlay/DLNA/Miracast, so advertisements never bind to the wrong address
+  - Can be turned off with the "开机自动启动接收服务" switch on the main screen
 
 ### 📱 Supported Sources
 

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -13,6 +14,7 @@ import com.weekd.miracastreceiver.R
 import com.weekd.miracastreceiver.discovery.DeviceInfoProvider
 import com.weekd.miracastreceiver.discovery.MdnsAdvertiser
 import com.weekd.miracastreceiver.service.CastReceiverService
+import com.weekd.miracastreceiver.util.AppSettings
 import com.weekd.miracastreceiver.utils.NetworkUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -31,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvDeviceIp: TextView
     private lateinit var tvConnectionCode: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var switchAutoStart: SwitchCompat
 
     private var connectionCode: String = ""
 
@@ -108,6 +111,14 @@ class MainActivity : AppCompatActivity() {
         tvDeviceIp = findViewById(R.id.tv_device_ip)
         tvConnectionCode = findViewById(R.id.tv_connection_code)
         tvStatus = findViewById(R.id.tv_status)
+        switchAutoStart = findViewById(R.id.switch_auto_start)
+
+        // 开机自启开关
+        switchAutoStart.isChecked = AppSettings.isAutoStartOnBoot(this)
+        switchAutoStart.setOnCheckedChangeListener { _, isChecked ->
+            AppSettings.setAutoStartOnBoot(this, isChecked)
+            Timber.i("Auto start on boot set to $isChecked")
+        }
 
         // 设置设备名称
         val deviceName = deviceInfoProvider.getDeviceName()

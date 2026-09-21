@@ -6,13 +6,17 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.weekd.miracastreceiver.R
 import com.weekd.miracastreceiver.airplay.AirPlayReceiver
@@ -34,11 +38,18 @@ import java.util.UUID
 class CastReceiverService : Service() {
 
     companion object {
+        /** 由 BootReceiver 设置：标记这次启动来自开机广播。 */
+        const val EXTRA_FROM_BOOT = "from_boot"
+
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "cast_receiver_service"
         private const val CHANNEL_NAME = "投屏接收服务"
         private const val ACTION_UPDATE_POSITION = "com.weekd.miracastreceiver.ACTION_UPDATE_POSITION"
         private const val ACTION_PLAYBACK_STOPPED = "com.weekd.miracastreceiver.ACTION_PLAYBACK_STOPPED"
+
+        /** 开机后等网络就绪的轮询间隔与最长等待时间。 */
+        private const val NETWORK_RETRY_INTERVAL_MS = 5_000L
+        private const val NETWORK_MAX_WAIT_MS = 5 * 60_000L
     }
 
     private lateinit var airPlayReceiver: AirPlayReceiver
@@ -49,6 +60,12 @@ class CastReceiverService : Service() {
     private lateinit var wifiDirectManager: WifiDirectManager
     private lateinit var deviceUuid: String
     private var airPlayPlayerStarted = false
+
+    /** initReceivers() 是否已经跑过：没跑过时那些 lateinit 字段不能碰。 */
+    private var initialized = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var networkWaitRunnable: Runnable? = null
+    private var networkWaitElapsedMs = 0L
 
     private val playerStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -76,7 +93,17 @@ class CastReceiverService : Service() {
         super.onCreate()
         Timber.i("CastReceiverService created")
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        // startForeground 放在 onStartCommand 里：前台服务类型要看这次是不是开机拉起的
+        // （Android 15 起 BOOT_COMPLETED 不允许启动 mediaPlayback 类型）。
+    }
+
+    /**
+     * 真正的初始化。开机启动时网络还没就绪，DLNA/SSDP 需要本机 IP 才能正确绑定，
+     * 所以推迟到 [startWhenNetworkReady] 拿到 IP 之后再做，且只做一次。
+     */
+    private fun initReceivers() {
+        if (initialized) return
+        initialized = true
 
         // 初始化设备 UUID
         deviceUuid = generateDeviceUuid()
@@ -314,8 +341,67 @@ class CastReceiverService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Timber.i("CastReceiverService started")
+        val fromBoot = intent?.getBooleanExtra(EXTRA_FROM_BOOT, false) ?: false
+        Timber.i("CastReceiverService started (fromBoot=$fromBoot)")
 
+        startForegroundCompat(fromBoot)
+        startWhenNetworkReady()
+
+        return START_STICKY
+    }
+
+    /**
+     * 前台服务类型：
+     * - 正常从界面启动用 mediaPlayback（投屏播放）；
+     * - 开机自启必须避开 mediaPlayback —— Android 15 起从 BOOT_COMPLETED 启动该类型
+     *   会抛 ForegroundServiceStartNotAllowedException，改用 connectedDevice
+     *   （本来也符合"接收局域网设备投屏"的语义，CHANGE_WIFI_STATE 已满足前提条件）。
+     */
+    private fun startForegroundCompat(fromBoot: Boolean) {
+        val type = if (fromBoot) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        }
+        // ServiceCompat：type 参数在 API 29 以下会被忽略，老电视上不会崩。
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, createNotification(), type)
+    }
+
+    /**
+     * 等到拿得到局域网 IP 再启动各路接收器。
+     *
+     * 开机自启时 Wi-Fi 往往还在连，这时候启动 SSDP/mDNS 会绑到错误的地址，
+     * 结果就是服务活着但手机搜不到设备。这里每 5 秒看一次，最多等 5 分钟。
+     */
+    private fun startWhenNetworkReady() {
+        networkWaitRunnable?.let { mainHandler.removeCallbacks(it) }
+        networkWaitRunnable = null
+
+        if (NetworkUtils.getLocalIpAddress() != null) {
+            networkWaitElapsedMs = 0L
+            initReceivers()
+            startAllServices()
+            return
+        }
+
+        if (networkWaitElapsedMs >= NETWORK_MAX_WAIT_MS) {
+            Timber.w("Network still not ready after ${NETWORK_MAX_WAIT_MS / 1000}s, starting anyway")
+            networkWaitElapsedMs = 0L
+            initReceivers()
+            startAllServices()
+            return
+        }
+
+        Timber.i("Network not ready yet, retry in ${NETWORK_RETRY_INTERVAL_MS}ms")
+        val runnable = Runnable {
+            networkWaitElapsedMs += NETWORK_RETRY_INTERVAL_MS
+            startWhenNetworkReady()
+        }
+        networkWaitRunnable = runnable
+        mainHandler.postDelayed(runnable, NETWORK_RETRY_INTERVAL_MS)
+    }
+
+    private fun startAllServices() {
         // 启动 AirPlay 2 接收器
         airPlayReceiver.start()
 
@@ -334,8 +420,6 @@ class CastReceiverService : Service() {
         wfdServer.start()
 
         Timber.i("All cast services started (AirPlay + DLNA + Miracast/WFD)")
-
-        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -343,7 +427,7 @@ class CastReceiverService : Service() {
     /** 用户从最近任务里划掉应用时也要断开投屏，否则发送端会以为连接还在。 */
     override fun onTaskRemoved(rootIntent: Intent?) {
         Timber.i("Task removed, tearing down cast sessions")
-        shutdownMiracast()
+        if (initialized) shutdownMiracast()
         super.onTaskRemoved(rootIntent)
         stopSelf()
     }
@@ -351,6 +435,12 @@ class CastReceiverService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Timber.i("CastReceiverService destroyed")
+
+        networkWaitRunnable?.let { mainHandler.removeCallbacks(it) }
+        networkWaitRunnable = null
+
+        // 还没等到网络就被停掉时，下面那些 lateinit 字段根本没初始化，碰了会崩。
+        if (!initialized) return
 
         try {
             unregisterReceiver(playerStateReceiver)
