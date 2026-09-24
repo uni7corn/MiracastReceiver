@@ -164,6 +164,9 @@ class WfdSessionHandler(
                     }
                     Timber.i("WFD: negotiated mode = $mode")
                 }
+                param(msg, "wfd_audio_codecs")?.let {
+                    Timber.i("WFD: source selected audio codec = $it")
+                }
                 sendOk(cseq)
                 if (msg.contains("wfd_trigger_method: SETUP")) sendSetup()      // M5 → M6
                 if (msg.contains("wfd_trigger_method: TEARDOWN")) close()

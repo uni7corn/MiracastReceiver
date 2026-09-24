@@ -16,7 +16,7 @@ import java.net.DatagramSocket
  * 12 字节 RTP 头 + 7 × 188 字节 TS 包。
  *
  * 所以这里剥掉 RTP 头后交给 [TsDemuxer] 解复用，解出的 H.264 访问单元由
- * [MiracastVideoRenderer] 直接送进 MediaCodec。
+ * [MiracastVideoRenderer] 直接送进 MediaCodec，音频 PES 交给 [MiracastAudioPlayer] 播放。
  *
  * 刻意不经过 ExoPlayer：播放器的缓冲策略对第二屏幕这种实时用途会引入 10 秒以上延迟，
  * 而这条路径「收到即解码、解完即送显」，延迟只剩编码 + 传输 + 解码的固有开销。
@@ -25,7 +25,7 @@ import java.net.DatagramSocket
  */
 class RtpReceiver(
     private val port: Int,
-    surfaceProvider: () -> Surface?
+    private val surfaceProvider: () -> Surface?
 ) {
 
     private var socket: DatagramSocket? = null
@@ -35,7 +35,14 @@ class RtpReceiver(
     private var isRunning = false
 
     private val renderer = MiracastVideoRenderer(surfaceProvider)
-    private val demuxer = TsDemuxer(renderer::onAccessUnit, renderer::onDiscontinuity)
+    private val audioPlayer = MiracastAudioPlayer()
+    private val demuxer = TsDemuxer(
+        onAccessUnit = renderer::onAccessUnit,
+        onDiscontinuity = renderer::onDiscontinuity,
+        // 和视频保持一致：播放页不在前台（没有 Surface）时不出声
+        onAudioPes = { codec, data -> if (surfaceProvider() != null) audioPlayer.onAudioPes(codec, data) },
+        onAudioDiscontinuity = audioPlayer::onDiscontinuity
+    )
 
     /**
      * 接收线程与解码线程之间的缓冲。
@@ -119,6 +126,7 @@ class RtpReceiver(
                             packetsLost += lost
                             Timber.w("RTP: lost $lost packets (seq $expectedSeq → $seq)")
                             renderer.onDiscontinuity()
+                            audioPlayer.onDiscontinuity()
                         }
                         expectedSeq = (seq + 1) and 0xFFFF
 
@@ -128,6 +136,7 @@ class RtpReceiver(
                             payloadQueue.poll()
                             payloadQueue.offer(payload)
                             renderer.onDiscontinuity()
+                            audioPlayer.onDiscontinuity()
                         }
 
                         if (packetsReceived % 1000L == 0L) {
@@ -187,6 +196,7 @@ class RtpReceiver(
         isRunning = false
         scope.cancel()
         renderer.release()
+        audioPlayer.release()
         demuxer.reset()
         if (active === this) active = null
 
