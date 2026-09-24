@@ -577,6 +577,8 @@ class PlayerActivity : AppCompatActivity() {
         isMiracastSession = true
         isAirPlayMirrorSession = false
         streamInfoTracker.reset()
+        // 画面不经过 ExoPlayer，PlayerView 的自动常亮不生效，必须手动保持，否则电视会进屏保
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         stopImageSlideShow()
 
         player?.clearVideoSurface()
