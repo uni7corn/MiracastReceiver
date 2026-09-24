@@ -5,7 +5,12 @@
 
 本文档记录如何让一台 **已 root 的 Android 设备**被 Windows 的「连接到无线显示器」发现并接收投屏。
 
-## 为什么必须 root
+> **先确认你的电视是否需要 root。** 系统自带「屏幕镜像」功能的电视（实测 Sony BRAVIA 4K VH22 / Android 12）
+> 系统本身已在广播 WFD IE，本应用无需 root 即可接管 Miracast 会话，Windows 和安卓手机都能直接发现。
+> 判断方法：`adb shell settings get global wifi_display_on` 返回 `1` 即属于此类，不必继续阅读本文。
+> 连接时电视上弹出的「是否允许连接」确认框是系统的 Wi-Fi Direct 授权流程，确认即可。
+
+## 为什么（系统不带屏幕镜像的设备）必须 root
 
 Windows 通过扫描 Wi-Fi beacon / probe response 里的 **WFD IE**（Wi-Fi Display 信息元素）来发现无线显示器。这个 IE 只能由系统的 `wpa_supplicant` 广播，而应用层要设置它必须调用：
 
@@ -22,7 +27,7 @@ SecurityException: Wifi Display Permission denied for uid = 10392
 
 绕过办法是用 root 直接和 `wpa_supplicant` 的控制 socket 对话，跳过 framework 的权限检查。本应用内置了 `libwfdctl.so`（源码 `app/src/main/cpp/wfdctl.c`）来做这件事，由 `WfdRootHelper` 通过 `su` 拉起。
 
-**没有 root 的设备无法使用此功能**，其余投屏方式（AirPlay / DLNA）不受影响。
+对于系统不带屏幕镜像功能的设备，**没有 root 就无法使用此功能**，其余投屏方式（AirPlay / DLNA）不受影响。
 
 ## 设备前置条件
 

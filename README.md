@@ -27,6 +27,10 @@
 
 ## 中文
 
+### 🎬 演示视频
+
+[▶️ 点击观看投屏演示（演示.mp4）](%E6%BC%94%E7%A4%BA.mp4)
+
 ### ✨ 功能特性
 
 - **🍎 AirPlay 支持**：完美支持 iPhone、iPad、Mac 投屏
@@ -40,10 +44,11 @@
   - VLC Player
   - Emby、Plex 等媒体服务器
 
-- **🖥️ Miracast/WFD**：Windows 无线显示器协议（**需要 root**）
+- **🖥️ Miracast/WFD**：Windows 无线显示器与安卓手机系统「投屏」共用的协议（**部分电视需要 root**，见[已知问题](#-已知问题)）
   - 完整 RTSP 会话协商（M1–M7）
   - MPEG-2 TS 解复用 + H.264 硬解码，直送 MediaCodec 低延迟渲染
-  - Wi-Fi Direct P2P + WFD IE 注入（Windows `Win+K` 可直接发现）
+  - AAC / LPCM 音频解码，收到即播，与画面同步输出
+  - Wi-Fi Direct P2P + WFD IE 注入（Windows `Win+K`、安卓系统投屏均可直接发现）
   - 端到端延迟约 60–130 ms，可作为 Windows 的无线第二屏幕
   - 详见 [Windows 无线投屏 Root 配置说明](Windows无线投屏Root配置说明.md)
 
@@ -65,8 +70,9 @@
 |------|------|------|------|
 | iPhone/iPad | AirPlay | ✅ 完美支持 | 屏幕镜像、视频、音频投屏 |
 | Android 手机 | DLNA | ✅ 完美支持 | Bilibili、优酷等 App |
+| Android 手机 | Miracast | ✅ 支持（部分需 root） | 系统自带「投屏」直接发现，整屏镜像含声音 |
 | Windows | DLNA | ✅ 完美支持 | 媒体播放器投屏 |
-| Windows | Miracast | ✅ 支持（需 root） | `Win+K` 直接发现，可当无线第二屏幕 |
+| Windows | Miracast | ✅ 支持（部分需 root） | `Win+K` 直接发现，可当无线第二屏幕，含声音 |
 | Mac | AirPlay | ✅ 完美支持 | 系统原生支持 |
 | Emby/Plex | DLNA | ✅ 兼容 | 媒体服务器投屏 |
 
@@ -96,10 +102,12 @@
 **Android 手机投屏**：
 - 在支持 DLNA 的 App（如 Bilibili）中点击投屏按钮
 - 选择显示的设备名称
+- 或使用系统自带的「投屏 / 无线显示」整屏镜像（Miracast，部分电视需 root，见[已知问题](#-已知问题)）
 
 **Windows 投屏**：
 - 使用 VLC 或 Windows Media Player 的"播放到"功能
 - 或使用 Emby、Plex 等媒体服务器
+- 或按 `Win+K` 连接无线显示器（Miracast，部分电视需 root）
 
 ### 🛠️ 从源码构建
 
@@ -153,14 +161,30 @@ cd MiracastReceiver
 
 ### 🐛 已知问题
 
-1. **Windows 无线显示器需要 root**
-   - `CONFIGURE_WIFI_DISPLAY` 是 signature 级权限，普通应用无法广播 WFD IE
-   - 已 root 的设备可由应用自动注入，Windows `Win+K` 能直接发现
-   - **未 root 的设备无法使用**，请改用 DLNA 投屏
+1. **Miracast（Windows 无线显示器 / 安卓系统投屏）在部分电视上需要 root**
+   - 电视要被 Windows `Win+K` 和安卓系统投屏发现，必须对外广播 WFD IE
+   - **系统自带「屏幕镜像」功能的电视（如 Sony BRAVIA）无需 root**：系统已经在广播 WFD IE，
+     本应用直接接管会话。可用 `adb shell settings get global wifi_display_on` 确认，返回 `1` 即属于此类
+   - 系统不带该功能的电视：广播 WFD IE 需要 signature 级权限 `CONFIGURE_WIFI_DISPLAY`，
+     普通应用拿不到，只能在 root 后由应用自动注入；未 root 则无法使用，请改用 DLNA 投屏
+   - 连接时电视上弹出「是否允许连接」的确认框是系统的 Wi-Fi Direct 授权流程，确认即可
    - 详见 [Windows 无线投屏 Root 配置说明](Windows无线投屏Root配置说明.md)
 
 2. **Emby 投屏兼容性**
    - 部分 Emby 客户端的 SOAP 请求格式可能需要特殊处理
+
+3. **Miracast 列表里显示的是 `Android_xxxx`，而不是电视名称**
+   - 安卓手机投屏和 Windows `Win+K` 列表里显示的是电视的 Wi-Fi Direct 设备名，由系统管理
+   - Android 11 起修改该名称需要 `NETWORK_SETTINGS` 等系统级权限，普通应用无法修改，
+     只能保持系统默认的 `Android_xxxx`
+   - 如果电视的「设置 → 网络」里有 Wi-Fi Direct 设置页，可以在那里改名；没有的话目前无法修改
+   - AirPlay / DLNA 不受影响，显示的是电视「设置 → 关于 → 设备名称」里的名字
+
+4. **需要「显示在其他应用上层」权限**
+   - Android 10 起系统禁止后台弹出界面。未打开本应用时（开机自启后、或退回桌面后）投屏，
+     播放页会被系统拦截，表现为投屏没有反应
+   - 首次打开应用时会弹窗引导到系统设置页开启；如果电视没有该设置页，可用 adb 开启：
+     `adb shell appops set com.weekd.miracastreceiver SYSTEM_ALERT_WINDOW allow`
 
 ### 🗺️ 后续计划
 
@@ -168,9 +192,7 @@ cd MiracastReceiver
   - 优化屏幕镜像稳定性和延迟
   - 优化音视频同步
 
-- **完善 Windows 无线投屏**（视频已可用，见 [Root 配置说明](Windows无线投屏Root配置说明.md)）
-  - **音频支持** —— 目前只解码视频轨，Windows 的声音尚未播放。TS 流里已带 AAC 音频轨，
-    需要在 `TsDemuxer` 里解出音频 PID 并接到 `AudioTrack`
+- **完善 Miracast 投屏（Windows / 安卓）**（音视频已可用，见 [Root 配置说明](Windows无线投屏Root配置说明.md)）
   - 进一步压低延迟（当前约 60–130 ms）
   - 支持 `wfd_idr_request_capability`，丢包后主动请求关键帧以加快恢复
   - 探索按需建组，避免常驻占用 Wi-Fi Direct 接口
@@ -187,6 +209,10 @@ cd MiracastReceiver
 
 ## English
 
+### 🎬 Demo Video
+
+[▶️ Watch the casting demo (演示.mp4)](%E6%BC%94%E7%A4%BA.mp4)
+
 ### ✨ Features
 
 - **🍎 AirPlay Support**: Perfect compatibility with iPhone, iPad, and Mac
@@ -200,10 +226,11 @@ cd MiracastReceiver
   - VLC Player
   - Emby, Plex media servers
 
-- **🖥️ Miracast/WFD**: Windows Wireless Display protocol (**root required**)
+- **🖥️ Miracast/WFD**: The protocol behind both Windows Wireless Display and Android's built-in screen casting (**root required on some TVs**, see [Known Issues](#-known-issues))
   - Full RTSP session negotiation (M1–M7)
   - MPEG-2 TS demuxing + H.264 hardware decoding, fed straight to MediaCodec
-  - Wi-Fi Direct P2P with WFD IE injection (discoverable via `Win+K`)
+  - AAC / LPCM audio decoding, played as it arrives alongside the video
+  - Wi-Fi Direct P2P with WFD IE injection (discoverable via `Win+K` and Android screen casting)
   - ~60–130 ms end-to-end latency, usable as a wireless second display
   - See [Root Setup Guide](Windows无线投屏Root配置说明.md) (Chinese)
 
@@ -225,8 +252,9 @@ cd MiracastReceiver
 |----------|----------|--------|-------|
 | iPhone/iPad | AirPlay | ✅ Perfect | Screen mirroring, video, audio casting |
 | Android | DLNA | ✅ Perfect | Bilibili, Youku apps |
+| Android | Miracast | ✅ Supported (root on some TVs) | Found by the built-in screen cast, full mirroring with audio |
 | Windows | DLNA | ✅ Perfect | Media player casting |
-| Windows | Miracast | ✅ Supported (root) | Discoverable via `Win+K`, works as second display |
+| Windows | Miracast | ✅ Supported (root on some TVs) | Discoverable via `Win+K`, works as second display, with audio |
 | Mac | AirPlay | ✅ Perfect | Native system support |
 | Emby/Plex | DLNA | ✅ Compatible | Media server casting |
 
@@ -256,10 +284,12 @@ cd MiracastReceiver
 **Android Phone**:
 - Tap cast button in DLNA-enabled apps (e.g., Bilibili)
 - Select the displayed device name
+- Or use the system's built-in screen cast / wireless display (Miracast, root required on some TVs — see [Known Issues](#-known-issues))
 
 **Windows**:
 - Use "Play To" in VLC or Windows Media Player
 - Or cast from Emby, Plex media servers
+- Or press `Win+K` to connect a wireless display (Miracast, root required on some TVs)
 
 ### 🛠️ Build from Source
 
@@ -313,14 +343,30 @@ Output APKs: `app/build/outputs/apk/`
 
 ### 🐛 Known Issues
 
-1. **Windows Wireless Display Requires Root**
-   - `CONFIGURE_WIFI_DISPLAY` is a signature-level permission, so ordinary apps cannot broadcast the WFD IE
-   - On rooted devices the app injects it automatically and `Win+K` finds the device
-   - **Non-rooted devices cannot use this feature** — use DLNA casting instead
+1. **Miracast (Windows Wireless Display / Android Screen Cast) Requires Root on Some TVs**
+   - To be found by Windows `Win+K` and Android screen casting, the TV must broadcast the WFD IE
+   - **TVs with built-in screen mirroring (e.g. Sony BRAVIA) need no root**: the system already broadcasts the WFD IE
+     and the app takes over the session. Check with `adb shell settings get global wifi_display_on` — `1` means this case
+   - On other TVs, broadcasting the WFD IE requires the signature-level `CONFIGURE_WIFI_DISPLAY` permission,
+     so the app can only inject it after rooting; without root, use DLNA casting instead
+   - The "allow connection?" prompt on the TV when connecting is the system's Wi-Fi Direct authorization — just confirm it
    - See [Root Setup Guide](Windows无线投屏Root配置说明.md) (Chinese)
 
 2. **Emby Casting Compatibility**
    - Some Emby clients may require special SOAP format handling
+
+3. **Miracast lists the TV as `Android_xxxx` instead of its name**
+   - Android screen casting and Windows `Win+K` show the TV's Wi-Fi Direct device name, which the system owns
+   - Since Android 11, renaming it requires system permissions such as `NETWORK_SETTINGS`, so the app
+     cannot change it and the system default `Android_xxxx` remains
+   - If the TV has a Wi-Fi Direct page under Settings → Network, rename it there; otherwise it cannot be changed for now
+   - AirPlay / DLNA are unaffected and use the name from the TV's Settings → About → Device name
+
+4. **"Display over other apps" permission required**
+   - Since Android 10, apps may not open screens from the background. When the app is not open
+     (after auto-start on boot, or after returning to the home screen), the player is blocked and casting appears to do nothing
+   - The app prompts for it on first launch and opens the system settings page; if the TV has no such page, grant it via adb:
+     `adb shell appops set com.weekd.miracastreceiver SYSTEM_ALERT_WINDOW allow`
 
 ### 🗺️ Roadmap
 
@@ -328,10 +374,7 @@ Output APKs: `app/build/outputs/apk/`
   - Optimize screen mirroring stability and latency
   - Improve audio-video synchronization
 
-- **Complete Windows Wireless Display** (video works — see [Root Setup Guide](Windows无线投屏Root配置说明.md))
-  - **Audio support** — only the video track is decoded today, so Windows audio stays silent.
-    The AAC track is already in the TS stream; `TsDemuxer` needs to extract the audio PID
-    and route it to `AudioTrack`
+- **Complete Miracast Casting (Windows / Android)** (audio and video work — see [Root Setup Guide](Windows无线投屏Root配置说明.md))
   - Push latency down further (currently ~60–130 ms)
   - Support `wfd_idr_request_capability` to request a keyframe after packet loss
   - Explore on-demand group creation instead of holding the Wi-Fi Direct interface permanently
