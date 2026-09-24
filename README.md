@@ -29,7 +29,9 @@
 
 ### 🎬 演示视频
 
-[▶️ 点击观看投屏演示（演示.mp4）](%E6%BC%94%E7%A4%BA.mp4)
+[▶️ 点击观看投屏演示（YouTube）](https://youtu.be/GykF2aWjmv4)
+
+[![Miracast Receiver 投屏演示](https://img.youtube.com/vi/GykF2aWjmv4/hqdefault.jpg)](https://youtu.be/GykF2aWjmv4)
 
 ### ✨ 功能特性
 
@@ -211,7 +213,9 @@ cd MiracastReceiver
 
 ### 🎬 Demo Video
 
-[▶️ Watch the casting demo (演示.mp4)](%E6%BC%94%E7%A4%BA.mp4)
+[▶️ Watch the casting demo (YouTube)](https://youtu.be/GykF2aWjmv4)
+
+[![Miracast Receiver casting demo](https://img.youtube.com/vi/GykF2aWjmv4/hqdefault.jpg)](https://youtu.be/GykF2aWjmv4)
 
 ### ✨ Features
 
