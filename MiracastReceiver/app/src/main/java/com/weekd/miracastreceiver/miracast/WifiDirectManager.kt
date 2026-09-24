@@ -196,6 +196,13 @@ class WifiDirectManager(
         }
     }
 
+    /**
+     * 尝试把 P2P 设备名改成 [deviceName]（安卓手机投屏列表里显示的就是它）。
+     *
+     * Android 11 起系统要求调用方持有 NETWORK_SETTINGS / NETWORK_STACK / OVERRIDE_WIFI_CONFIG
+     * 之一，普通应用拿不到，这里必然失败，名称保持系统默认的 `Android_xxxx`。
+     * 只有旧系统或系统签名的构建才会成功，保留调用是为了这些设备。
+     */
     private fun setDeviceName(name: String) {
         try {
             // 使用反射设置设备名称（API 限制）
