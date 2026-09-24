@@ -27,6 +27,10 @@
     <!-- 开机自动启动接收服务 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- 后台拉起播放页：Android 10+ 禁止后台启动 Activity，只有前台服务不够，
+         持有「显示在其他应用上层」权限的应用可豁免，否则应用不在前台时投屏没有画面 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- TV 特性声明 -->
     <uses-feature
         android:name="android.hardware.touchscreen"

@@ -1,10 +1,15 @@
 package com.weekd.miracastreceiver.ui
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
@@ -36,6 +41,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchAutoStart: SwitchCompat
 
     private var connectionCode: String = ""
+
+    /** 定位权限弹窗还在时不叠加悬浮窗权限提示，等它有结果再说 */
+    private var wifiPermissionPending = false
+    private var overlayPromptShown = false
 
     companion object {
         private const val REQUEST_CODE_PERMISSIONS = 1001
@@ -74,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (missing.isNotEmpty()) {
             Timber.i("Requesting Wi-Fi Direct permissions: $missing")
+            wifiPermissionPending = true
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), REQUEST_CODE_PERMISSIONS)
         }
     }
@@ -85,6 +95,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != REQUEST_CODE_PERMISSIONS) return
+        wifiPermissionPending = false
 
         val granted = grantResults.isNotEmpty() &&
             grantResults.all { it == PackageManager.PERMISSION_GRANTED }
@@ -96,6 +107,57 @@ class MainActivity : AppCompatActivity() {
             Timber.w("Wi-Fi Direct permissions denied — Miracast unavailable")
             tvStatus.text = "未授予定位权限，Windows 无线投屏不可用"
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!wifiPermissionPending) promptOverlayPermissionIfNeeded()
+    }
+
+    /**
+     * 「显示在其他应用上层」权限。
+     *
+     * Android 10 起系统禁止后台启动 Activity，前台服务也不例外。开机自启或者用户按了
+     * 主页键之后，应用不在前台，投屏连上时服务拉起播放页会被系统静默拦截 —— 声音、
+     * 解码都在跑，屏幕上却什么都没有。持有这个权限的应用可以豁免该限制。
+     */
+    private fun promptOverlayPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        if (overlayPromptShown || Settings.canDrawOverlays(this)) return
+        overlayPromptShown = true
+
+        AlertDialog.Builder(this)
+            .setTitle("需要「显示在其他应用上层」权限")
+            .setMessage(
+                "未打开本应用时（例如开机自启后、或退回桌面后），系统会阻止投屏画面自动弹出，" +
+                    "表现为投屏没有反应。\n\n请在接下来的设置页中为本应用开启此权限。"
+            )
+            .setPositiveButton("去设置") { _, _ -> openOverlaySettings() }
+            .setNegativeButton("稍后", null)
+            .show()
+    }
+
+    private fun openOverlaySettings() {
+        val withPackage = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
+        // 部分电视的设置页不认带包名的 Intent，退回到列表页让用户自己找
+        val intents = listOf(withPackage, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+        for (intent in intents) {
+            try {
+                startActivity(intent)
+                return
+            } catch (e: ActivityNotFoundException) {
+                Timber.w("Overlay settings not available: ${intent.data}")
+            }
+        }
+        Timber.w("No overlay permission settings page on this device")
+        Toast.makeText(
+            this,
+            "此设备没有该设置页，请用 adb 执行：appops set $packageName SYSTEM_ALERT_WINDOW allow",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private fun initServices() {
